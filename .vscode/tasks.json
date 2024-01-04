@@ -1,0 +1,69 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "CMake Configure",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["-B", "${workspaceFolder}/build"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "CMake Build",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "${workspaceFolder}/build"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "CMake Clean",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "${workspaceFolder}/build", "--target", "clean"],
+            "group": "build"
+        },
+        {
+            "label": "Run Executable",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/yolov5_tensorrt",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        }
+    ]
+}
+
+// {
+//     "version": "2.0.0",
+//     "tasks": [
+//         {
+//             "label": "CMake Configure",
+//             "type": "shell",
+//             "command": "cmake",
+//             "args": ["${workspaceFolder}"],
+//             "group": {
+//                 "kind": "build",
+//                 "isDefault": true
+//             }
+//         },
+//         {
+//             "label": "CMake Build",
+//             "type": "shell",
+//             "command": "cmake",
+//             "args": ["--build", "${workspaceFolder}/build"],
+//             "group": {
+//                 "kind": "build",
+//                 "isDefault": true
+//             }
+//         }
+//     ]
+// }

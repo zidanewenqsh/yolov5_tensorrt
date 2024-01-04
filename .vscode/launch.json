@@ -1,0 +1,32 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Current C++ File",
+            "type": "cppdbg",
+            "request": "launch",
+            // "program": "${workspaceFolder}/bin/${fileBasenameNoExtension}",
+            "program": "${workspaceFolder}/build/${fileBasenameNoExtension}",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "environment": [
+                {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "/usr/local/lib:$LD_LIBRARY_PATH"
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "CMake Build", // 确保与 tasks.json 中的构建任务名称匹配
+            "miDebuggerPath": "/usr/bin/gdb"
+        }
+    ]
+}
