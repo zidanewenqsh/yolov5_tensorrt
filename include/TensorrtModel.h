@@ -56,6 +56,9 @@ protected:
     void* h_box_count = nullptr;
     void* d_box_count = nullptr;
     int input_batch;
+    int input_channel;
+    int input_height;
+    int input_width;
     int input_numel;
     int output_batch;
     int output_numbox;

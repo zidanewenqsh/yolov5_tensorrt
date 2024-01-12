@@ -43,8 +43,10 @@ protected:
 public:
     InferenceManager(size_t pool_size, size_t threads, const std::string& modelname);
     void processImages(const std::vector<Image>& images);
+    void processBatch(const std::vector<Image>& images, int input_batch);
     // void processImages(const std::vector<cv::Mat>& images);
     Result processSingleImage(const Image& image);
+    Result processBatchImage(const std::vector<Image>& images);
     // Result processSingleImage(const cv::Mat& image);
     void handleResult(const Result& result);
 };

@@ -43,6 +43,7 @@ Yolov5::Yolov5(const std::string& name)
         exit(-1);
     }
     auto engine_data = loadData(trt_file);
+    LOG_WARNING("engine_data.size():%d", engine_data.size());
     engine = runtime->deserializeCudaEngine(engine_data.data(), engine_data.size());
     if (!engine) {
         // std::cout << "deserializeCudaEngine failed" << std::endl;
@@ -60,6 +61,9 @@ Yolov5::Yolov5(const std::string& name)
         LOG_FATAL("createExecutionContext failed");
         exit(-1);
     }
+    inputDims.nbDims = 4;
+    outputDims.nbDims = 3;
+
     // if (init() < 0) {
     //     std::cout << "init failed" << std::endl;
     //     exit(-1);
@@ -90,19 +94,23 @@ Yolov5::Yolov5(const std::string& name, int buffer_size)
 Yolov5::~Yolov5() {
     std::cout << "~Yolov5())" << std::endl;
 }
+// int Yolov5::init(const std::vector<ImageData_t*> datas) {
+// int Yolov5::init() {
+//     return 0;
+// }
 int Yolov5::init() {
     if (!build_finished && !exists(trt_file)) {
         // std::cout << "trt_file exists" << std::endl;
         LOG_FATAL("trt file not exists: %s", trt_file.c_str());
         return -1;
     }
-    
+    LOG_DEBUG("maxBatchSize:%d",maxBatchSize);
     checkRuntime(cudaMemset((char*)host_buffer, 0, buffersize));
     checkRuntime(cudaMemset((char*)device_buffer, 0, buffersize));
     // LOG_INFO("temp:%d", temp);
     // temp = 100;
-    inputW = kInputW;
-    inputH = kInputH;
+    // inputW = kInputW;
+    // inputH = kInputH;
     if (host_buffer == nullptr || device_buffer == nullptr) {
         std::cout << "host_buffer or device_buffer is nullptr" << std::endl;
         return -1;
@@ -117,8 +125,12 @@ int Yolov5::init() {
         std::cout << "runtime_init already finished" << std::endl;
         return 0;
     }
+    bool flag;
+    // float tmp[3] = {1,2,3};
+    // memcpy(host_buffer, &tmp, sizeof(float) * 3);
     float mean[3] = {0, 0, 0};
     float std[3] = {1, 1, 1};
+    // float tmp[3] = {1,2,3};
     // if (runtime == nullptr) {
     //     runtime = nvinfer1::createInferRuntime(gLogger);
     //     LOG_INFO("createInferRuntime");
@@ -145,49 +157,75 @@ int Yolov5::init() {
 
     // 明确当前推理时，使用的数据输入大小
     auto input_dims = engine->getTensorShape(kInputTensorName);
-    input_batch = input_dims.d[0];
-    input_numel = input_batch * kInputH * kInputW * 3;
-    if(malloc_host(&input_data_host, sizeof(float) * input_numel)<0) {
+    // for (auto x :input_dims.d) {
+    //     std::cout << x << std::endl;
+    // }
+    input_batch = input_dims.d[0] == -1 ? maxBatchSize : input_dims.d[0];
+    input_channel = input_dims.d[1];
+    input_height = input_dims.d[2];
+    input_width = input_dims.d[3];
+    input_numel = input_height * input_width * input_channel;
+    inputDims.d[0] = input_batch;
+    for (int i = 1; i < inputDims.nbDims; i++) {
+        inputDims.d[i] = input_dims.d[i];
+    } 
+    LOG_WARNING("input_batch:%d, input_numel:%d", input_batch, input_numel);
+    if(malloc_host(&input_data_host, sizeof(float) * input_numel * input_batch)<0) {
         std::cout << "malloc_host input_data_host failed" << std::endl;
         return -1;
     }
-    if (malloc_device(&input_data_device, sizeof(float) * input_numel)<0){
+    if (malloc_device(&input_data_device, sizeof(float) * input_numel * input_batch)<0){
         std::cout << "malloc_device input_data_device failed" << std::endl;
         return -1;
     }
+    // memcpy(input_data_host, &tmp, sizeof(float) * 3);
+    // LOG_DEBUG("input_batch:%d", input_batch);
 
+    // float tmp[3] = {1,2,3};
+    // memcpy(input_data_host, &tmp, sizeof(float) * 3);
     // 明确当前推理时，使用的数据输出大小
     nvinfer1::Dims output_dims = context->getTensorShape(kOutputTensorName);
     // printDims(output_dims);
-    output_batch = output_dims.d[0];
+    // output_batch = output_dims.d[0];
+    output_batch = output_dims.d[0] == -1 ? maxBatchSize : output_dims.d[0];
     output_numbox = output_dims.d[1];
     output_numprob = output_dims.d[2];
+    output_dims.d[0] = output_batch; 
+    for (int i = 1; i < outputDims.nbDims; i++) {
+        outputDims.d[i] = output_dims.d[i];
+    } 
+
     num_classes = output_numprob - 5;
-    output_numel = output_batch * output_numbox * output_numprob;
+    output_numel = output_numbox * output_numprob;
     // printf("output_batch: %d, output_numbox: %d, output_numprob: %d, num_classes: %d, output_numel: %d\n", output_batch, output_numbox, output_numprob, num_classes, output_numel); 
 
-    if(malloc_host(&output_data_host, sizeof(float) * output_numel)<0) {
+    LOG_WARNING("output_batch:%d, output_numel:%d", output_batch, output_numel);
+    if(malloc_host(&output_data_host, sizeof(float) * output_numel * output_batch)<0) {
         std::cout << "malloc_host output_data_host failed" << std::endl;
         return -1;
     }
-    if (malloc_device(&output_data_device, sizeof(float) * output_numel)<0){
+    if (malloc_device(&output_data_device, sizeof(float) * output_numel * output_batch)<0){
         std::cout << "malloc_device output_data_device failed" << std::endl;
         return -1;
     }
-
+    // memcpy(output_data_host, &tmp, sizeof(float) * 3);
+    LOG_DEBUG("output_data_host:%p", output_data_host);
     if (malloc_host(&h_mean, 3 * sizeof(float))<0) {
         std::cout << "malloc_device h_mean failed" << std::endl;
         return -1;
     }
+    // memcpy(h_mean, &tmp, sizeof(float) * 3);
+    LOG_DEBUG("h_mean:%p", h_mean);
     // printf("h_mean:%p\n", h_mean);
-    // h_mean = new float[3];
-    memcpy(h_mean, mean, 3 * sizeof(float));
     // checkRuntime(cudaMemcpy(h_mean, mean, 3 * sizeof(float), cudaMemcpyHostToHost));
     if (malloc_host(&h_std, 3 * sizeof(float))<0) {
         std::cout << "malloc_device h_std failed" << std::endl;
         return -1;
     }
+    LOG_DEBUG("h_std:%p", h_std);
+    // h_mean = new float[3];
     // h_std = new float[3];
+    memcpy(h_mean, mean, 3 * sizeof(float));
     memcpy(h_std, std, 3 * sizeof(float));
     if (malloc_device(&d_mean, 3 * sizeof(float))<0) {
         std::cout << "malloc_device d_mean failed" << std::endl;
@@ -197,19 +235,33 @@ int Yolov5::init() {
         std::cout << "malloc_device d_std failed" << std::endl;
         return -1;
     }
+    flag = checkRuntime(cudaMemcpyAsync(d_mean, mean, 3 * sizeof(float), cudaMemcpyHostToDevice, stream));
+    if (!flag) {
+        LOG_FATAL("fatal error");
+        exit(-1);
+    }
     checkRuntime(cudaMemcpyAsync(d_mean, mean, 3 * sizeof(float), cudaMemcpyHostToDevice, stream));
     checkRuntime(cudaMemcpyAsync(d_std, std, 3 * sizeof(float), cudaMemcpyHostToDevice, stream));
 
-    if (malloc_host(&h_matrix, 12 * sizeof(float))<0) {
+    if (malloc_host(&h_matrix, input_batch * sizeof(Matrix_t))<0) {
         std::cout << "malloc_device h_matrix failed" << std::endl;
         return -1;
     }
 
-    if (malloc_device(&d_matrix, 12 * sizeof(float))<0) {
+    if (malloc_device(&d_matrix, input_batch * sizeof(Matrix_t))<0) {
         std::cout << "malloc_device d_matrix failed" << std::endl;
         return -1;
     }
 
+    // if (malloc_host(&h_matrix, input_batch * 12 * sizeof(float))<0) {
+    //     std::cout << "malloc_device h_matrix failed" << std::endl;
+    //     return -1;
+    // }
+
+    // if (malloc_device(&d_matrix, input_batch * 12 * sizeof(float))<0) {
+    //     std::cout << "malloc_device d_matrix failed" << std::endl;
+    //     return -1;
+    // }
     // if (malloc_device(&image_data_device, kChannel * kImageHMax * kImageWMax * sizeof(unsigned char))<0) {
     //     std::cout << "malloc_device image_data_device failed" << std::endl;
     //     return -1;
@@ -239,14 +291,58 @@ int Yolov5::init() {
         std::cout << "malloc_device d_box_count failed" << std::endl;
         return -1;
     }
+    checkRuntime(cudaMemset((char*)d_box_count, 0, sizeof(int)));
 
     init_finished = true;
     // std::cout << "init finished" << std::endl;
     LOG_INFO("init finieshed");
     return 0;
-
 }
 
+int Yolov5::preprocessBatch(std::vector<ImageData_t>& imgdatas) {
+    char* input_data_batch_device = reinterpret_cast<char*>(input_data_device);
+    // Matrix_t* h_matrix_batch = reinterpret_cast<Matrix_t*>(h_matrix);
+    // Matrix_t* d_matrix_batch = reinterpret_cast<Matrix_t*>(d_matrix);
+    char* h_matrix_batch = reinterpret_cast<char*>(h_matrix);
+    char* d_matrix_batch = reinterpret_cast<char*>(d_matrix);
+    for (int i = 0; i < input_batch; i++) {
+        auto imgdata = imgdatas[i];
+        void* image_data_batch_device = nullptr;
+        if (malloc_device(&image_data_batch_device, imgdata.numel * sizeof(unsigned char))<0) {
+            std::cout << "malloc_device image_data_device failed" << std::endl;
+            return -1;
+        }
+        calculate_matrix((float*)h_matrix_batch, imgdata.width, imgdata.height, kInputW, kInputH);
+        // float* matrix = (float*)h_matrix_batch;
+        // for (int j = 0; j < 12; j++) {
+        //     std::cout << matrix[j] << " ";
+        // } 
+        // std::cout << std::endl;
+        // float *d2i = (float*)h_matrix_batch + 6;
+        // float *d2i = (float*)h_matrix_batch + 6;
+        checkRuntime(cudaMemcpyAsync(d_matrix_batch, h_matrix_batch, sizeof(Matrix_t), cudaMemcpyHostToDevice, stream));
+        // checkRuntime(cudaMemset((char*)d_box_count, 0, sizeof(int)));
+        // checkRuntime(cudaMemset((char*)d_filtered_boxes, 0, output_numbox * sizeof(gBox)));
+        // checkRuntime(cudaMemset((char*)d_filtered_boxes, 0, (output_numel + 1) * sizeof(int)));
+        checkRuntime(cudaMemcpyAsync(image_data_batch_device, imgdata.dataptr, imgdata.size, cudaMemcpyHostToDevice, stream));
+        checkRuntime(cudaStreamSynchronize(stream));
+        // std::cout << imgdata->width << std::endl;
+        int ret = preprocess_gpu((unsigned char*)image_data_batch_device, (float*)input_data_batch_device, 
+            imgdata.width, imgdata.height, input_width, input_height, 
+            ((Matrix_t*)d_matrix_batch)->d2i, (float*)d_mean, (float*)d_std);
+        if (ret < 0) {
+            // std::cout << "preprocess failed" << std::endl;
+            LOG_ERROR("preprocess not success");
+            return -1;
+        }
+        input_data_batch_device += input_numel * sizeof(float);
+        // h_matrix_batch++;
+        // d_matrix_batch++;
+        h_matrix_batch += sizeof(Matrix_t);
+        d_matrix_batch += sizeof(Matrix_t);
+    }
+    return 0;
+}
 
 int Yolov5::preprocess(ImageData_t *imgdata) {
     if (malloc_device(&image_data_device, imgdata->numel * sizeof(unsigned char))<0) {
@@ -324,6 +420,37 @@ int Yolov5::preprocess(cv::Mat &img) {
 #endif
     return 0;
 }
+
+int Yolov5::postprocessBatch() {
+    cudaMemcpy(output_data_host, output_data_device, output_batch * output_numel * sizeof(float), cudaMemcpyDeviceToHost);
+    // char* output_data_batch_host = reinterpret_cast<char*>(output_data_host);
+    char* output_data_batch_device = reinterpret_cast<char*>(output_data_device);
+    char* h_filtered_boxes_batch = reinterpret_cast<char*>(h_filtered_boxes);
+    char* d_filtered_boxes_batch = reinterpret_cast<char*>(d_filtered_boxes);
+    // Matrix_t* h_matrix_batch = reinterpret_cast<Matrix_t*>(h_matrix);
+    // Matrix_t* d_matrix_batch = reinterpret_cast<Matrix_t*>(d_matrix);
+    // char* h_matrix_batch = reinterpret_cast<char*>(h_matrix);
+    char* d_matrix_batch = reinterpret_cast<char*>(d_matrix);
+    for (int i = 0; i < input_batch; i++) {
+        bool cpunms = true;
+        int ret = postprocess_cuda((float*)output_data_batch_device, (char *)d_filtered_boxes_batch, ((Matrix_t*)d_matrix_batch)->d2i, 
+                output_numbox, output_numprob, kConfThresh, kNmsThresh, cpunms);
+        if (ret < 0) {
+            std::cout << "postprocess failed" << std::endl;
+            return -1;
+        } 
+        checkRuntime(cudaMemcpyAsync(h_filtered_boxes_batch, d_filtered_boxes_batch, (output_numel + 1) * sizeof(int), cudaMemcpyDeviceToHost, stream));
+        checkRuntime(cudaStreamSynchronize(stream)); // 我要用h_box_count，所以要同步
+        checkRuntime(cudaStreamSynchronize(stream));
+        nms_cpu(h_filtered_boxes_batch, kNmsThresh);
+        output_data_batch_device += output_numel * sizeof(float);
+        h_filtered_boxes_batch += (output_numel + 1) * sizeof(int);
+        d_filtered_boxes_batch += (output_numel + 1) * sizeof(int);
+        d_matrix_batch += sizeof(Matrix_t);
+    }
+    return 0;
+}
+
 int Yolov5::postprocess() {
     // 后处理
     // std::cout << "postprocess()" << std::endl;
@@ -337,7 +464,7 @@ int Yolov5::postprocess() {
     cpunms = true;
 #endif
     int ret = postprocess_cuda((float*)output_data_device, (char *)d_filtered_boxes, (float *)d_matrix, 
-             output_batch, output_numbox, output_numprob, kConfThresh, kNmsThresh, cpunms);
+              output_numbox, output_numprob, kConfThresh, kNmsThresh, cpunms);
     if (ret < 0) {
         std::cout << "postprocess failed" << std::endl;
         return -1;
@@ -364,7 +491,19 @@ int Yolov5::postprocess() {
 #endif
     return 0;
 }
+void Yolov5::drawimgBatch(std::vector<ImageData_t>& imgdatas) {
+    char* h_filtered_boxes_batch = reinterpret_cast<char*>(h_filtered_boxes);
+    for (int i = 0; i < input_batch; i++) {
+        auto imgdata = imgdatas[i];
+        std::string savepath = imgdata.savepath;
+        cv::Mat img(imgdata.height, imgdata.width, CV_8UC3, imgdata.dataptr);
+        cv::Mat img_draw = draw_gpu(h_filtered_boxes_batch, img);
+        cv::imwrite(savepath, img_draw);
+        h_filtered_boxes_batch += (output_numel + 1) * sizeof(int);
+    }
+}
 void Yolov5::drawimg(cv::Mat &img, const std::string& savepath) {
+    cv::Mat img_draw = img.clone();
     // 绘制
     // std::cout << "draw()" << std::endl;
 #if PROCESSONGPU
@@ -372,7 +511,7 @@ void Yolov5::drawimg(cv::Mat &img, const std::string& savepath) {
     // LogInfo("count: %d\n", count);
     // LOG_INFO("count: %d\n", count);
     // printf("count: %d\n", count);
-    cv::Mat img_draw = draw_gpu((char*)h_filtered_boxes, img);
+    img_draw = draw_gpu((char*)h_filtered_boxes, img_draw);
     // cv::imwrite("result_gpu_v2.jpg", img_draw);
     // cv::imwrite("result_gpu_" + std::to_string(index) + ".jpg", img_draw);
     cv::imwrite(savepath, img_draw);
@@ -406,32 +545,9 @@ int Yolov5::inference(Data *data) {
         return -1;
     }
     init();
-    // if (!init_finished) {
-    //     // std::cout << "not init" << std::endl;
-    //     init();
-    //     // return -1;
-    // }
-    // ImageData_t* imageData = dynamic_cast<ImageData_t*>(data);
+    context->setInputShape(kInputTensorName, inputDims);
+    // context->set(kOutputTensorName, outputDims);
     ImageData_t* imagedata = static_cast<ImageData_t*>(data);
-    
-    // if (imageData) {
-    //     // 现在可以安全地使用 imageData 中的特定字段
-    //     // ...
-    //     return 0; // 或其他适当的返回值
-    // } else {
-    //     // 转换失败的处理
-    //     return -1; // 或其他错误代码
-    // }
-    // int size = imagedata->size;
-    // void *dataptr = imagedata->dataptr;
-    // if(malloc_host(&input_data_host, sizeof(float) * input_numel)<0) {
-    //     std::cout << "malloc_host input_data_host failed" << std::endl;
-    //     return -1;
-    // }
-    // if (malloc_device(&input_data_device, sizeof(float) * input_numel)<0){
-    //     std::cout << "malloc_device input_data_device failed" << std::endl;
-    //     return -1;
-    // }
     int ret;
     auto start = std::chrono::high_resolution_clock::now();
     ret = preprocess(imagedata);
@@ -459,10 +575,54 @@ int Yolov5::inference(Data *data) {
     LOG_INFO("Elapsed time:%f\n", elapsed.count());
     return 0;
 }
+
+
+int Yolov5::inferenceBatch(std::vector<ImageData_t>& datas) {
+    if (!set_memory) {
+        LOG_ERROR("not set memory");
+        // std::cout << "set_memory is false" << std::endl;
+        return -1;
+    }
+    init();
+    inputDims.d[0] = datas.size();
+    input_batch = datas.size();
+    context->setInputShape(kInputTensorName, inputDims);
+    int ret;
+    auto start = std::chrono::high_resolution_clock::now();
+    ret = preprocessBatch(datas);
+    if (ret < 0) {
+        // std::cout << "preprocess failed" << std::endl;
+        LOG_ERROR("preprocess failed");
+        return -1;
+    }
+    // printf("input_data_device:%p\n", input_data_device);
+    // printf("output_data_device:%p\n", output_data_device);
+    ret = forward();
+    if (ret < 0) {
+        std::cout << "inference failed" << std::endl;
+        return -1;
+    }
+    ret = postprocessBatch();
+    if (ret < 0) {
+        std::cout << "postprocess failed" << std::endl;
+        return -1;
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+
+    std::chrono::duration<double> elapsed = end - start;
+    // std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
+    LOG_INFO("Elapsed time:%f\n", elapsed.count());
+    return 0;
+}
+
+
 int Yolov5::get_box(void **boxes) {
     int count = *(int *)h_filtered_boxes;
     *boxes = (char*)h_filtered_boxes + sizeof(int); 
     return count;
+}
+int Yolov5::get_maxBatchSize() {
+    return maxBatchSize;
 }
 int Yolov5::inference_image(std::string &img_file) {
     if (malloc_host(&h_filtered_boxes, sizeof(int) * (output_numel + 1))) {
@@ -525,9 +685,11 @@ int Yolov5::setMemory(void *cpuptr, void *gpuptr, int buffer_size) {
     device_buffer_now = (char*)device_buffer;
     buffersize = buffer_size;
     set_memory = true;
+    // float tmp[3] = {1,2,3};
+    // memcpy(host_buffer, &tmp, sizeof(float) * 3);
     return 0;
 }
-void Yolov5::make_imagedata(const cv::Mat& image, ImageData_t* imagedata) {
+void Yolov5::make_imagedata(const cv::Mat& image, const std::string& savepath, ImageData_t* imagedata) {
     imagedata->width = image.cols;
     imagedata->height = image.rows;
     imagedata->channels = image.channels();
@@ -535,6 +697,7 @@ void Yolov5::make_imagedata(const cv::Mat& image, ImageData_t* imagedata) {
     imagedata->numel = image.total() * image.channels();
     imagedata->dataptr = image.data;
     imagedata->size = image.total() * image.elemSize();
+    imagedata->savepath = savepath;
 }
 
 

@@ -1,16 +1,16 @@
 #include "postprocess_gpu.h"
 #define INNERNMS 0
 // #define GPUNMS 0
-#define checkRuntime(op)  __check_cuda_runtime((op), #op, __FILE__, __LINE__)
-static bool __check_cuda_runtime(cudaError_t code, const char* op, const char* file, int line){
-    if(code != cudaSuccess){    
-        const char* err_name = cudaGetErrorName(code);    
-        const char* err_message = cudaGetErrorString(code);  
-        printf("runtime error %s:%d  %s failed. \n  code = %s, message = %s\n", file, line, op, err_name, err_message);   
-        return false;
-    }
-    return true;
-}
+// #define checkRuntime(op)  __check_cuda_runtime((op), #op, __FILE__, __LINE__)
+// static bool __check_cuda_runtime(cudaError_t code, const char* op, const char* file, int line){
+//     if(code != cudaSuccess){    
+//         const char* err_name = cudaGetErrorName(code);    
+//         const char* err_message = cudaGetErrorString(code);  
+//         printf("runtime error %s:%d  %s failed. \n  code = %s, message = %s\n", file, line, op, err_name, err_message);   
+//         return false;
+//     }
+//     return true;
+// }
 static const char* cocolabels[] = {
     "person", "bicycle", "car", "motorcycle", "airplane",
     "bus", "train", "truck", "boat", "traffic light", "fire hydrant",
@@ -152,6 +152,7 @@ __global__ void filter_boxes_kernel(float* boxes, char *d_filtered_boxes, float*
     bboxes->y2 = y2;
     bboxes->prob = prob;
     bboxes->label = label;
+    bboxes->remove = 0;
     // printf("x1: %f, y1: %f, x2: %f, y2: %f, prob: %f, label: %d, count: %d\n", x1, y1, x2, y2, prob, label, count);
 }
 
@@ -219,58 +220,58 @@ void nms_cpu(char *h_filtered_boxes, float nms_threshold) {
         }
     }
 }
-int postprocess_cuda(float* d_data, char *d_filtered_boxes, float *d_matrix, int output_batch, int output_numbox, int output_numprob, 
+int postprocess_cuda(float* d_data, char *d_filtered_boxes, float *d_matrix,  int output_numbox, int output_numprob, 
     float confidence_threshold, float nms_threshold, bool cpunms) {
-    for (int i = 0; i < output_batch; i++) {
-        // int output_numel = output_numbox * output_numprob;
-        // 调用 Kernel
-        int threadsPerBlock = 256;
-        int blocksPerGrid = (output_numbox + threadsPerBlock - 1) / threadsPerBlock;
-        cudaError_t error;
+    // for (int i = 0; i < output_batch; i++) {
+    // int output_numel = output_numbox * output_numprob;
+    // 调用 Kernel
+    int threadsPerBlock = 256;
+    int blocksPerGrid = (output_numbox + threadsPerBlock - 1) / threadsPerBlock;
+    cudaError_t error;
 #if INNERNMS
-        filter_boxes_kernel_withnms<<<blocksPerGrid, threadsPerBlock>>>(d_data, d_filtered_boxes, d_matrix, 
-            output_numbox, output_numprob, confidence_threshold, nms_threshold);
-        // 检查是否有错误发生
-        error = cudaGetLastError();
-        if (error != cudaSuccess) {
-            std::cerr << "Postprocess CUDA Kernel Error: " << cudaGetErrorString(error) << std::endl;
-            return -1;
-        }
-        // cudaMemcpy(h_box_count, d_box_count, sizeof(int), cudaMemcpyDeviceToHost);
-#else
-        filter_boxes_kernel<<<blocksPerGrid, threadsPerBlock>>>(d_data, d_filtered_boxes, d_matrix, 
-            output_numbox, output_numprob, confidence_threshold, nms_threshold);
-        // 检查是否有错误发生
-        error = cudaGetLastError();
-        if (error != cudaSuccess) {
-            std::cerr << "Postprocess CUDA Kernel Error: " << cudaGetErrorString(error) << std::endl;
-            return -1;
-        }
-        // 同步设备以确保所有操作都已完成
-        error = cudaDeviceSynchronize();
-        if (error != cudaSuccess) {
-            std::cerr << "Postprocess CUDA Error: " << cudaGetErrorString(error) << std::endl;
-            return -1;
-        }
-        if (cpunms) return 0; 
-        int h_box_count;
-        cudaMemcpy(&h_box_count, d_filtered_boxes, sizeof(int), cudaMemcpyDeviceToHost);
-        // cudaMemcpy(h_box_count+i, d_box_count+i, sizeof(int), cudaMemcpyDeviceToHost);
-        // nms
-        threadsPerBlock = 256;
-        // blocksPerGrid = (*(h_box_count) + threadsPerBlock - 1) / threadsPerBlock;
-        blocksPerGrid = (h_box_count + threadsPerBlock - 1) / threadsPerBlock;
-        // nms<<<blocksPerGrid, threadsPerBlock>>>(d_filtered_boxes,  *h_box_count, nms_threshold);   
-        nms<<<blocksPerGrid, threadsPerBlock>>>(d_filtered_boxes, nms_threshold);   
-
-        // 检查是否有错误发生
-        error = cudaGetLastError();
-        if (error != cudaSuccess) {
-            std::cerr << "Postprocess CUDA Kernel Error: " << cudaGetErrorString(error) << std::endl;
-            return -1;
-        }
-#endif
+    filter_boxes_kernel_withnms<<<blocksPerGrid, threadsPerBlock>>>(d_data, d_filtered_boxes, d_matrix, 
+        output_numbox, output_numprob, confidence_threshold, nms_threshold);
+    // 检查是否有错误发生
+    error = cudaGetLastError();
+    if (error != cudaSuccess) {
+        std::cerr << "Postprocess CUDA Kernel Error: " << cudaGetErrorString(error) << std::endl;
+        return -1;
     }
+    // cudaMemcpy(h_box_count, d_box_count, sizeof(int), cudaMemcpyDeviceToHost);
+#else
+    filter_boxes_kernel<<<blocksPerGrid, threadsPerBlock>>>(d_data, d_filtered_boxes, d_matrix, 
+        output_numbox, output_numprob, confidence_threshold, nms_threshold);
+    // 检查是否有错误发生
+    error = cudaGetLastError();
+    if (error != cudaSuccess) {
+        std::cerr << "Postprocess CUDA Kernel Error: " << cudaGetErrorString(error) << std::endl;
+        return -1;
+    }
+    // 同步设备以确保所有操作都已完成
+    error = cudaDeviceSynchronize();
+    if (error != cudaSuccess) {
+        std::cerr << "Postprocess CUDA Error: " << cudaGetErrorString(error) << std::endl;
+        return -1;
+    }
+    if (cpunms) return 0; 
+    int h_box_count;
+    cudaMemcpy(&h_box_count, d_filtered_boxes, sizeof(int), cudaMemcpyDeviceToHost);
+    // cudaMemcpy(h_box_count+i, d_box_count+i, sizeof(int), cudaMemcpyDeviceToHost);
+    // nms
+    threadsPerBlock = 256;
+    // blocksPerGrid = (*(h_box_count) + threadsPerBlock - 1) / threadsPerBlock;
+    blocksPerGrid = (h_box_count + threadsPerBlock - 1) / threadsPerBlock;
+    // nms<<<blocksPerGrid, threadsPerBlock>>>(d_filtered_boxes,  *h_box_count, nms_threshold);   
+    nms<<<blocksPerGrid, threadsPerBlock>>>(d_filtered_boxes, nms_threshold);   
+
+    // 检查是否有错误发生
+    error = cudaGetLastError();
+    if (error != cudaSuccess) {
+        std::cerr << "Postprocess CUDA Kernel Error: " << cudaGetErrorString(error) << std::endl;
+        return -1;
+    }
+#endif
+    // }
     return 0;
 }
 
@@ -282,8 +283,8 @@ cv::Mat draw_gpu(char* h_filtered_boxes, cv::Mat img) {
     for (int i = 0; i < count; i++) {
         auto box = boxes[i];
         if (box.remove == 1) continue;
-        // printf("i: %d\n", i);
-        // box.print();
+        printf("i: %d\n", i);
+        box.print();
         int x1 = (int)box.x1;
         int y1 = (int)box.y1;
         int x2 = (int)box.x2;

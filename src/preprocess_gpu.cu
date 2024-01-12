@@ -124,3 +124,26 @@ int preprocess_gpu(const unsigned char* d_input, float* d_output, int original_w
     return 0;
 }
 
+
+// int preprocess_gpu(const int batchsize, const unsigned char* d_input, float* d_output, int original_width, int original_height, int target_width, int target_height, const float* d_matrix, const float* d_mean, const float* d_std) {
+//     const unsigned char *input_ptr = d_input; 
+//     float *output_ptr = d_output;
+//     for (int i = 0; i < batchsize; i++) {
+//         // 设置 CUDA 网格和块的大小
+//         dim3 blockSize(BLOCKSIZE, BLOCKSIZE);
+//         dim3 gridSize((target_width + blockSize.x - 1) / blockSize.x, (target_height + blockSize.y - 1) / blockSize.y);
+//         // 调用 CUDA 内核
+//         preprocess_kernel<<<gridSize, blockSize>>>(d_input, d_output, d_matrix, original_width, original_height, target_width, target_height, d_mean, d_std);
+
+//         // 检查 CUDA 是否成功执行
+//         cudaError_t error = cudaGetLastError();
+//         if (error != cudaSuccess) {
+//             std::cerr << "Preprocess CUDA Error: " << cudaGetErrorString(error) << std::endl;
+//             return -1;
+//         }
+//         // 同步 CUDA 设备以确保所有操作都已完成
+//         cudaDeviceSynchronize();
+
+//     }
+//     return 0;
+// }

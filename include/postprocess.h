@@ -18,6 +18,8 @@ typedef struct box_s {
 
 std::vector<Box> postprocess_cpu(float *data, int output_batch, int output_numbox, int output_numprob, 
         float confidence_threshold, float nms_threshold);
+std::vector<Box> postprocess_cpu(const int batchsize, float *data, int output_batch, int output_numbox, int output_numprob, 
+        float confidence_threshold, float nms_threshold);
 cv::Mat draw(std::vector<Box> &boxes, cv::Mat &img, float *d2i);       
 cv::Mat draw_cpu(std::vector<Box> &boxes, cv::Mat &img, float *d2i);       
 
