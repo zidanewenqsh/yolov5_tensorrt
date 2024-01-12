@@ -9,9 +9,10 @@
 #include <cuda_runtime.h>
 #include <chrono>
 #include <atomic>
+#include "Logger.h"
 // ... 可能还需要包含其他头文件 ...
 
-class MemPoolGpu {
+class MemPoolGpu : public Logger {
 public:
     MemPoolGpu(size_t blockSize);
     MemPoolGpu(size_t blockSize, size_t blockCount);

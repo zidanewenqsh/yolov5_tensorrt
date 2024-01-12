@@ -1,4 +1,45 @@
 #include "YoloUtils.h"
+
+void insertImageInfo(const std::shared_ptr<sql::Connection>& conn, const std::string& file_name, const std::string& upload_time, const std::string& source) {
+    // std::shared_ptr<sql::PreparedStatement> pstmt;
+    // 使用 std::shared_ptr 的构造函数来创建 pstmt
+    // pstmt = conn->prepareStatement("INSERT INTO images (file_name, upload_time, source) VALUES (?, ?, ?)");
+    std::shared_ptr<sql::PreparedStatement> pstmt(conn->prepareStatement("INSERT INTO images (file_name, upload_time, source) VALUES (?, ?, ?)"), [](sql::PreparedStatement* ptr){ delete ptr; });
+    pstmt->setString(1, file_name);
+    pstmt->setString(2, upload_time);
+    pstmt->setString(3, source);
+    pstmt->executeUpdate();
+}
+void insertDetectionResult(const std::shared_ptr<sql::Connection>& conn, int image_id, const std::string& class_name, double confidence, int bbox_xmin, int bbox_ymin, int bbox_xmax, int bbox_ymax, const std::string& detection_time) {
+    // std::shared_ptr<sql::PreparedStatement> pstmt;
+    // pstmt = conn->prepareStatement("INSERT INTO detections (image_id, class_name, confidence, bbox_xmin, bbox_ymin, bbox_xmax, bbox_ymax, detection_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    // 使用 std::shared_ptr 的构造函数来创建 pstmt
+    std::shared_ptr<sql::PreparedStatement> pstmt(conn->prepareStatement("INSERT INTO detections (image_id, class_name, confidence, bbox_xmin, bbox_ymin, bbox_xmax, bbox_ymax, detection_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"), [](sql::PreparedStatement* ptr){ delete ptr; });
+
+    pstmt->setInt(1, image_id);
+    pstmt->setString(2, class_name);
+    pstmt->setDouble(3, confidence);
+    pstmt->setInt(4, bbox_xmin);
+    pstmt->setInt(5, bbox_ymin);
+    pstmt->setInt(6, bbox_xmax);
+    pstmt->setInt(7, bbox_ymax);
+    pstmt->setString(8, detection_time);
+    pstmt->executeUpdate();
+}
+
+std::string getCurrentDateTime() {
+    // 获取当前时间点
+    auto now = std::chrono::system_clock::now();
+    // 转换为时间_t类型
+    auto now_c = std::chrono::system_clock::to_time_t(now);
+    // 转换为tm结构
+    std::tm now_tm = *std::localtime(&now_c);
+
+    // 使用stringstream进行格式化
+    std::stringstream ss;
+    ss << std::put_time(&now_tm, "%Y-%m-%d %H:%M:%S");
+    return ss.str();
+}
 std::vector<std::string> readLinesFromFile(const std::string& filename) {
     std::vector<std::string> lines;
     std::ifstream file(filename);
@@ -45,7 +86,13 @@ void saveData(const std::string &filename, const char *data, const int size) {
 
 std::vector<char> loadData(const std::string &filename) {
     std::ifstream infile(filename, std::ios::binary);
-    assert(infile.is_open() && "loadData failed");
+    // assert(infile.is_open() && "loadData failed");
+    if (!infile.is_open()) {
+        throw std::runtime_error("loadData failed: " + filename);
+        // 或者使用 std::cerr 来打印错误消息，然后返回空向量或执行其他错误处理
+        // std::cerr << "loadData failed: " + filename << std::endl;
+        // return std::vector<char>();
+    }
     infile.seekg(0, std::ios::end);
     int size = infile.tellg();
     infile.seekg(0, std::ios::beg);

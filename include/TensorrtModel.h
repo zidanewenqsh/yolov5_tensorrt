@@ -17,6 +17,7 @@
 #include <opencv2/opencv.hpp>
 #include <cstdlib>
 #include <chrono>
+#include "Logger.h"
 
 typedef struct Data_s {
     void *dataptr;
@@ -24,7 +25,7 @@ typedef struct Data_s {
     virtual ~Data_s() {} // 添加虚析构函数
 }Data;
 // bool exists(const std::string& path);
-class MyTensorRT {
+class TensorRTModel : public Logger {
 // private:
 protected:
     size_t buffersize;
@@ -47,7 +48,6 @@ protected:
     void *d_std = nullptr;
     void *h_matrix = nullptr;
     void *d_matrix = nullptr;
-    bool init_finished = false;
     std::string onnx_file;
     std::string trt_file;
     std::string name;
@@ -71,18 +71,24 @@ protected:
     bool use_int8 = false;
     bool use_fp16 = false;
     bool set_memory = false;
+    bool init_finished = false;
+    // static bool build_finished = false;
+    bool build_finished = false;
+    int temp = 1024;
 
 public:
-    MyTensorRT();
-    MyTensorRT(std::string &name);
-    MyTensorRT(std::string &name, int buffer_size);
-    virtual ~MyTensorRT();
+    TensorRTModel();
+    TensorRTModel(const std::string &name);
+    TensorRTModel(const std::string &name, int buffer_size);
+    virtual ~TensorRTModel();
 
     int malloc_host(void **ptr, size_t size);
     int malloc_device(void** ptr, size_t size);
 
-    int build();
+    // int build();
+    virtual int build() = 0;
     virtual int init() = 0;
+    virtual void reset() = 0;
     virtual int setMemory(void *cpuptr, void *gpuptr, int buffersize) = 0;
     virtual int preprocess(cv::Mat &img) = 0;
     virtual int postprocess() = 0;

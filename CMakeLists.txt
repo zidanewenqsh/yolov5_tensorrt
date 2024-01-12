@@ -22,7 +22,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch=sm_61") # 根据您的 GPU 架构调整
 # 查找 Boost
-# find_package(Boost REQUIRED COMPONENTS timer)
+find_package(Boost REQUIRED COMPONENTS timer)
 # 查找 OpenCV
 find_package(OpenCV REQUIRED)
 
@@ -66,7 +66,7 @@ file(GLOB_RECURSE SOURCE_FILES
 # add_executable(MyExecutable ${SOURCE_FILES})
 add_executable(${PROJECT_NAME} ${SOURCE_FILES})
 # target_link_libraries(${EXE_NAME} opencv_core opencv_imgproc opencv_imgcodecs m nvonnxparser)
-target_link_libraries(${PROJECT_NAME} m nvonnxparser)
+target_link_libraries(${PROJECT_NAME} m nvonnxparser mysqlcppconn)
 target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} ${CUDA_LIBRARIES} ${TENSORRT_LIBRARY} ${Boost_LIBRARIES})
 
 # # 指定源文件目录

@@ -2,11 +2,9 @@
 // Created by wen on 2023-12-30.
 //
 
-#ifndef MEMORYPOOL_LOGGER_H
-#define MEMORYPOOL_LOGGER_H
 // Logger.h
-//#ifndef LOGGER_H
-//#define LOGGER_H
+#ifndef __LOGGER_H__
+#define __LOGGER_H__
 
 #include <iostream>
 #include <fstream>

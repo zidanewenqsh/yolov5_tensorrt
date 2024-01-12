@@ -31,6 +31,7 @@ MemPoolGpu::MemPoolGpu(size_t blockSize, size_t blockCount)
         checkRuntime(cudaMalloc((void**)&block, blockSize));
         freeBlocks.push_back(block);
     }
+    LOG_INFO("gpu mempool construct success"); 
 }
 
 MemPoolGpu::~MemPoolGpu() {
@@ -49,11 +50,13 @@ void* MemPoolGpu::allocate() {
     if (freeBlocks.empty()) {
         char* block;
         checkRuntime(cudaMalloc((void**)&block, blockSize));
+        LOG_INFO("malloc device success"); 
         return block; 
     }
 
     char* block = freeBlocks.back();
     freeBlocks.pop_back();
+    LOG_INFO("allocate device success"); 
     return block;
 }
 
@@ -64,6 +67,7 @@ void MemPoolGpu::deallocate(void* block) {
 
     std::lock_guard<std::mutex> lock(mutex);
     freeBlocks.push_back(static_cast<char*>(block));
+    LOG_INFO("deallocate device success"); 
 }
 
 void MemPoolGpu::stopPool() {

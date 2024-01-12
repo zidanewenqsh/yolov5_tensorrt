@@ -1,6 +1,7 @@
 .idea/
 .cache/
 build*/
+backup/
 # Prerequisites
 *.d
 

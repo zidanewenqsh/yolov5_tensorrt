@@ -30,6 +30,7 @@ MemPool::MemPool(size_t blockSize, size_t blockCount)
         checkRuntime(cudaMallocHost((void**)&block, blockSize));
         freeBlocks.push_back(block);
     }
+    LOG_INFO("cpu mempool construct success"); 
 }
 
 MemPool::~MemPool() {
@@ -48,11 +49,13 @@ void* MemPool::allocate() {
     if (freeBlocks.empty()) {
         char* block;
         checkRuntime(cudaMallocHost((void**)&block, blockSize));
+        LOG_INFO("malloc host success"); 
         return block; 
     }
 
     char* block = freeBlocks.back();
     freeBlocks.pop_back();
+    LOG_INFO("allocate host success"); 
     return block;
 }
 
@@ -63,6 +66,7 @@ void MemPool::deallocate(void* block) {
 
     std::lock_guard<std::mutex> lock(mutex);
     freeBlocks.push_back(static_cast<char*>(block));
+    LOG_INFO("deallocate host success"); 
 }
 
 void MemPool::stopPool() {

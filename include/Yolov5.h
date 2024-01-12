@@ -1,20 +1,21 @@
 #ifndef __YOLO_H__
 #define __YOLO_H__
 
-#include "MyTensorrt.h"
+#include "TensorrtModel.h"
 #include "Logger.h"
 // #include "yolov5_config.h"
-#include "preprocess_gpu.cuh"
-#include "postprocess_gpu.cuh"
+#include "preprocess_gpu.h"
+#include "postprocess_gpu.h"
 #include <cstdlib>
 #include <chrono>
 #include "preprocess.h"
 #include "postprocess.h"
+// #include "IYolo.h"
 // #include "yolov5_utils.h"
 // #include "mempool.h"
 // #include "mempool_gpu.h"
 
-typedef struct ImageData:Data {
+typedef struct ImageData_s:Data {
     int width;
     int height;
     int channels;
@@ -22,13 +23,15 @@ typedef struct ImageData:Data {
     int numel;
 }ImageData_t;
 
-class Yolov5:public MyTensorRT, public Logger {
+class Yolov5:public TensorRTModel {
 public:
     Yolov5();
-    Yolov5(std::string& name);
-    Yolov5(std::string& name, int buffer_size);
+    Yolov5(const std::string& name);
+    Yolov5(const std::string& name, int buffer_size);
     ~Yolov5();
+    int build() override;
     int init() override;
+    void reset() override;
     int setMemory(void *cpuptr, void *gpuptr, int buffersize) override;
     int preprocess(cv::Mat &img) override;
     int preprocess(ImageData_t *imgdata);
@@ -38,6 +41,8 @@ public:
     int inference(Data* data) override;
     int inference_image(std::string &img_file);
     void make_imagedata(const cv::Mat& image, ImageData_t* imagedata);
+    int get_box(void **boxes);
+    
     // int malloc_host(void **ptr, size_t size);
     // int malloc_device(void** ptr, size_t size);
     // int free_host(void *ptr);
@@ -46,6 +51,7 @@ public:
     // MemPool mempool;
     // MemPoolGpu mempool_gpu;
 // private:
+//     std::unique_ptr<IYolo> createYoloInstance() override;
 //     std::unique_ptr<MemoryPool> mempool;
 //     std::unique_ptr<MemoryPoolGpu> mempool_gpu;
 };
